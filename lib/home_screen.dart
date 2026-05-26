@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Use a separate variable to check mounted state
               if (mounted) {
                 Navigator.pushReplacement(
+                  // ignore: use_build_context_synchronously
                   context,
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
                 );
