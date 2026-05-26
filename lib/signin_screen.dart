@@ -111,7 +111,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                   const SizedBox(height: 24),
-                  // Email field
+                  
                   TextFormField(
                     controller: _emailController,
                     decoration: InputDecoration(
@@ -161,7 +161,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       ),
                     ),
                   ),
-                  // Forgot password
+                  
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -172,7 +172,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       ),
                     ),
                   ),
-                  // Get Started button
+                  
                   SizedBox(
                     width: double.infinity,
                     height: 46,
