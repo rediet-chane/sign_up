@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'signin_screen.dart';
+import 'package:sign_up/view/auth/signin_screen.dart';
+import '../../controller/auth_controller.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -19,14 +15,14 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Home'),
         backgroundColor: Colors.blue,
         actions: [
+          // LOGOUT BUTTON TO EXIT
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              // Use a separate variable to check mounted state
-              if (mounted) {
+              await AuthController.signOut();
+              if (context.mounted) {
+                // Go back to login screen
                 Navigator.pushReplacement(
-                  // ignore: use_build_context_synchronously
                   context,
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
                 );
@@ -42,13 +38,18 @@ class _HomeScreenState extends State<HomeScreen> {
             const Icon(Icons.check_circle, size: 80, color: Colors.green),
             const SizedBox(height: 20),
             const Text(
-              'Logged In Successfully!',
+              'Welcome!',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
-              'Welcome, ${user?.email ?? 'User'}',
+              'Email: ${user?.email ?? 'User'}',
               style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Role: Regular User',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
