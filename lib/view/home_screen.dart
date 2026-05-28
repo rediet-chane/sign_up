@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:sign_up/view/auth/signin_screen.dart';
 import '../../controller/auth_controller.dart';
+import 'auth/signin_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -14,17 +14,19 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Home'),
         backgroundColor: Colors.blue,
+        // THIS LINE REMOVES THE BACK ARROW IF IT APPEARS
+        automaticallyImplyLeading: false, 
         actions: [
-          // LOGOUT BUTTON TO EXIT
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await AuthController.signOut();
               if (context.mounted) {
-                // Go back to login screen
-                Navigator.pushReplacement(
+                // We use pushReplacement here too to clear history
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
+                  (route) => false, // This removes ALL previous screens
                 );
               }
             },

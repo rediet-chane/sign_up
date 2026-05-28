@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:sign_up/controller/app_router.dart';
 import 'firebase_options.dart';
 import 'view/auth/signin_screen.dart';
 
@@ -19,7 +20,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'My App',
       debugShowCheckedModeBanner: false,
-      home: const SignInScreen(),
+      home: AppRouter.getInitialScreen(),
     );
   }
 }
