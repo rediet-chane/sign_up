@@ -11,15 +11,17 @@ class AdminDashboard extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
         backgroundColor: Colors.red,
+        automaticallyImplyLeading: false, // No back arrow
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await AuthController.signOut();
               if (context.mounted) {
-                Navigator.pushReplacement(
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
+                  (route) => false,
                 );
               }
             },

@@ -46,15 +46,17 @@ class _VendorDashboardState extends State<VendorDashboard> {
       appBar: AppBar(
         title: const Text('Vendor Dashboard'),
         backgroundColor: Colors.orange,
+        automaticallyImplyLeading: false, // No back arrow
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await AuthController.signOut();
               if (context.mounted) {
-                Navigator.pushReplacement(
+                Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
+                  (route) => false,
                 );
               }
             },
