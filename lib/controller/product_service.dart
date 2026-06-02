@@ -12,35 +12,25 @@ class ProductService {
 
   CollectionReference get productsRef => _firestore.collection('products');
 
-  // 1. Compress image and convert to Base64
   Future<String?> compressAndEncodeImage(XFile imageFile) async {
     try {
       Uint8List fileBytes = await imageFile.readAsBytes();
       img.Image? originalImage = img.decodeImage(fileBytes);
       if (originalImage == null) return null;
 
-      img.Image resized = img.copyResize(
-        originalImage,
-        width: 400,
-        interpolation: img.Interpolation.linear,
-      );
-
-      Uint8List compressedBytes = Uint8List.fromList(
-        img.encodeJpg(resized, quality: 70),
-      );
-
+      img.Image resized = img.copyResize(originalImage, width: 400, interpolation: img.Interpolation.linear);
+      Uint8List compressedBytes = Uint8List.fromList(img.encodeJpg(resized, quality: 70));
       return base64Encode(compressedBytes);
     } catch (e) {
       return null;
     }
   }
 
-  // 2. Add a Product
   Future<void> addProduct({
     required String name,
     required double price,
     required String description,
-    String? imageBase64,
+    String? imageData,
   }) async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -49,18 +39,36 @@ class ProductService {
       'name': name,
       'price': price,
       'description': description,
-      'imageBase64': imageBase64 ?? '',
+      'imageData': imageData ?? '',
       'vendorId': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // 3. Get All Products
-  Stream<QuerySnapshot> getProducts() {
+  // ✅ FIX: ALL parameters are explicitly named to prevent any linter confusion
+  Future<void> updateProduct({
+    required String docId,
+    required String name,
+    required double price,
+    required String description,
+    required String imageData,
+  }) async {
+    await productsRef.doc(docId).update({
+      'name': name,
+      'price': price,
+      'description': description,
+      'imageData': imageData,
+    });
+  }
+
+  Stream<QuerySnapshot> getVendorProducts(String vendorId) {
+    return productsRef.where('vendorId', isEqualTo: vendorId).orderBy('createdAt', descending: true).snapshots();
+  }
+
+  Stream<QuerySnapshot> getAllProducts() {
     return productsRef.orderBy('createdAt', descending: true).snapshots();
   }
 
-  // 4. Delete a Product
   Future<void> deleteProduct(String docId) async {
     await productsRef.doc(docId).delete();
   }

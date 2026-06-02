@@ -3,37 +3,36 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../view/auth/signin_screen.dart';
 import '../view/home_screen.dart';
 import '../view/dashboard/admin_dashboard.dart';
-import '../view/dashboard/vendor_dashboard.dart';// <-- NEW: Loading screen
-import 'auth_controller.dart';
+import '../view/dashboard/vendor_dashboard.dart';
+import '../view/pending_approval_screen.dart';
+import 'user_service.dart';
 
 class AppRouter {
-  // 🔄 CHANGED: Now returns a Future because role check is async
   static Future<Widget> getInitialScreen() async {
     final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SignInScreen();
 
-    if (user == null) {
-      return const SignInScreen();
-    }
+    UserService userService = UserService();
+    String? role = await userService.getCurrentUserRole();
+    String? status = await userService.getCurrentUserStatus();
 
-    // Read role from Firestore
-    String role = await AuthController.getUserRole();
-
-    if (role == 'admin') {
-      return const AdminDashboard();
-    } else if (role == 'vendor') {
-      return const VendorDashboard();
-    } else {
-      return const HomeScreen();
-    }
+    if (role == 'admin') return const AdminDashboard();
+    if (role == 'vendor' && status == 'pending') return const PendingApprovalScreen();
+    if (role == 'vendor') return const VendorDashboard();
+    
+    return const HomeScreen();
   }
 
-  // Navigate based on role (still works the same)
   static Future<void> navigateBasedOnRole(BuildContext context) async {
-    String role = await AuthController.getUserRole();
+    UserService userService = UserService();
+    String? role = await userService.getCurrentUserRole();
+    String? status = await userService.getCurrentUserStatus();
     Widget destination;
 
     if (role == 'admin') {
       destination = const AdminDashboard();
+    } else if (role == 'vendor' && status == 'pending') {
+      destination = const PendingApprovalScreen();
     } else if (role == 'vendor') {
       destination = const VendorDashboard();
     } else {
@@ -41,10 +40,7 @@ class AppRouter {
     }
 
     if (context.mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => destination),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => destination));
     }
   }
 }

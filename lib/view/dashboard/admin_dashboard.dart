@@ -35,86 +35,92 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 );
               }
             },
-            child: const Text('Logout'),
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  // ✅ MODERN, DEPRECATION-FREE ROLE SELECTOR
-  void _showRoleDialog(String userId, String currentRole, String userName) {
-    String selectedRole = currentRole;
+  void _showManageUserDialog(String userId, String currentRole, String currentStatus, String userName) {
+    // ✅ Ensure we always have valid default values
+    String selectedRole = currentRole.isNotEmpty ? currentRole : 'customer';
+    String selectedStatus = currentStatus.isNotEmpty ? currentStatus : 'pending';
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Change Role: $userName'),
+          title: Text('Manage: $userName'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildRoleOption('customer', 'Customer', selectedRole, setDialogState),
-              const SizedBox(height: 8),
-              _buildRoleOption('vendor', 'Vendor', selectedRole, setDialogState),
-              const SizedBox(height: 8),
-              _buildRoleOption('admin', 'Admin', selectedRole, setDialogState),
+              const Text('Role:', style: TextStyle(fontWeight: FontWeight.bold)),
+              DropdownButton<String>(
+                value: selectedRole,
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(value: 'customer', child: Text('Customer')),
+                  DropdownMenuItem(value: 'vendor', child: Text('Vendor')),
+                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setDialogState(() => selectedRole = val);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text('Approval Status:', style: TextStyle(fontWeight: FontWeight.bold)),
+              DropdownButton<String>(
+                value: selectedStatus,
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(value: 'pending', child: Text('Pending Approval')),
+                  DropdownMenuItem(value: 'approved', child: Text('Approved')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setDialogState(() => selectedStatus = val);
+                  }
+                },
+              ),
             ],
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, selectedRole),
-              child: const Text('Save'),
+              onPressed: () => Navigator.pop(ctx, {'role': selectedRole, 'status': selectedStatus}),
+              child: const Text('Save Changes'),
             ),
           ],
         ),
       ),
-    ).then((newRole) async {
-      if (newRole != null && newRole != currentRole) {
-        await _userService.updateUserRole(userId, newRole);
+    ).then((result) async {
+      if (result != null && result is Map) {
+        // Show loading or just update
+        await _userService.updateUserRoleAndStatus(
+          userId, 
+          result['role'] as String, 
+          result['status'] as String
+        );
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Role updated to $newRole')),
+            SnackBar(
+              content: Text('User updated to ${result['role']} (${result['status']})'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       }
     });
   }
 
-  Widget _buildRoleOption(String roleValue, String title, String selectedRole, void Function(void Function()) setDialogState) {
-    final isSelected = selectedRole == roleValue;
-    return InkWell(
-      onTap: () => setDialogState(() => selectedRole = roleValue),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.shade50 : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey.shade300,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: isSelected ? Colors.blue : Colors.grey,
-            ),
-            const SizedBox(width: 12),
-            Text(title, style: const TextStyle(fontSize: 16)),
-          ],
-        ),
-      ),
-    );
-  }
-
   Color _roleColor(String role) {
-    switch (role) {
-      case 'admin': return Colors.red;
-      case 'vendor': return Colors.orange;
-      default: return Colors.blue;
-    }
+    if (role == 'admin') return Colors.red;
+    if (role == 'vendor') return Colors.orange;
+    return Colors.blue;
   }
 
   @override
@@ -165,8 +171,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     final firstName = data['firstName'] ?? 'No Name';
                     final lastName = data['lastName'] ?? '';
                     final email = data['email'] ?? '';
-                    final store = data['storeName'] ?? 'N/A';
                     final role = data['role'] ?? 'customer';
+                    final status = data['status'] ?? 'pending';
 
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -183,26 +189,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(email),
-                            Text('Store: $store'),
+                            Text(
+                              'Role: $role | Status: $status',
+                              style: TextStyle(
+                                color: status == 'pending' ? Colors.orange : Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            // ✅ FIXED: withValues instead of withOpacity
-                            color: _roleColor(role).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            role.toUpperCase(),
-                            style: TextStyle(
-                              color: _roleColor(role),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        onTap: () => _showRoleDialog(userId, role, '$firstName $lastName'),
+                        trailing: const Icon(Icons.edit, color: Colors.grey),
+                        onTap: () => _showManageUserDialog(userId, role, status, '$firstName $lastName'),
                       ),
                     );
                   },

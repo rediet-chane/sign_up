@@ -5,62 +5,56 @@ class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Save user profile (NOW WITH ROLE)
   Future<void> saveUserProfile({
     required String firstName,
     required String lastName,
     required String storeName,
     required String email,
-    required String role, // <-- NEW: 'customer', 'vendor', or 'admin'
+    required String role,
   }) async {
     User? user = _auth.currentUser;
     if (user == null) return;
+
+    String initialStatus = (role == 'vendor') ? 'pending' : 'approved';
 
     await _firestore.collection('users').doc(user.uid).set({
       'firstName': firstName,
       'lastName': lastName,
       'storeName': storeName,
       'email': email,
-      'role': role, // <-- NEW: Save role in database
+      'role': role,
+      'status': initialStatus,
       'uid': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // Get current user's role from Firestore
-  Future<String?> getCurrentUserRole() async {
-    User? user = _auth.currentUser;
-    if (user == null) return null;
-    
-    DocumentSnapshot doc = await _firestore.collection('users').doc(user.uid).get();
-    if (doc.exists) {
-      final data = doc.data() as Map<String, dynamic>;
-      return data['role'] ?? 'customer';
-    }
-    return 'customer';
-  }
-
-  // Get current user profile
   Future<Map<String, dynamic>?> getCurrentUserProfile() async {
     User? user = _auth.currentUser;
     if (user == null) return null;
-    
     DocumentSnapshot doc = await _firestore.collection('users').doc(user.uid).get();
-    if (doc.exists) {
-      return doc.data() as Map<String, dynamic>;
-    }
-    return null;
+    return doc.exists ? doc.data() as Map<String, dynamic> : null;
   }
 
-  // 🆕 ADMIN: Get ALL users (for admin dashboard)
+  Future<String?> getCurrentUserRole() async {
+    final profile = await getCurrentUserProfile();
+    return profile?['role'] ?? 'customer';
+  }
+
+  Future<String?> getCurrentUserStatus() async {
+    final profile = await getCurrentUserProfile();
+    return profile?['status'] ?? 'pending';
+  }
+
   Stream<QuerySnapshot> getAllUsers() {
     return _firestore.collection('users').snapshots();
   }
 
-  // 🆕 ADMIN: Update a user's role (promote/demote)
-  Future<void> updateUserRole(String userId, String newRole) async {
+  // THIS IS THE METHOD THAT WAS MISSING
+  Future<void> updateUserRoleAndStatus(String userId, String newRole, String newStatus) async {
     await _firestore.collection('users').doc(userId).update({
       'role': newRole,
+      'status': newStatus,
     });
   }
 }
