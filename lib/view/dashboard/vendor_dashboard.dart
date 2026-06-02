@@ -14,10 +14,38 @@ class VendorDashboard extends StatefulWidget {
 class _VendorDashboardState extends State<VendorDashboard> {
   final ProductService _productService = ProductService();
   
-  // Controllers for the form
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
+
+  // 1. CONFIRMATION FOR LOGOUT
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx); // Close dialog
+              await AuthController.signOut();
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SignInScreen()),
+                  (route) => false,
+                );
+              }
+            }, 
+            child: const Text('Logout')
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showAddDialog() {
     showDialog(
@@ -28,7 +56,9 @@ class _VendorDashboardState extends State<VendorDashboard> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name')),
+            const SizedBox(height: 10),
             TextField(controller: _priceController, decoration: const InputDecoration(labelText: 'Price'), keyboardType: TextInputType.number),
+            const SizedBox(height: 10),
             TextField(controller: _descController, decoration: const InputDecoration(labelText: 'Description')),
           ],
         ),
@@ -37,18 +67,47 @@ class _VendorDashboardState extends State<VendorDashboard> {
           ElevatedButton(
             onPressed: () async {
               if (_nameController.text.isNotEmpty) {
+                // Add to Firebase
                 await _productService.addProduct(
                   _nameController.text,
                   double.tryParse(_priceController.text) ?? 0.0,
                   _descController.text,
                 );
+                
+                // Clear fields
                 _nameController.clear();
                 _priceController.clear();
                 _descController.clear();
-                Navigator.pop(ctx);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                }
               }
             }, 
             child: const Text('Save')
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. CONFIRMATION FOR DELETE
+  void _confirmDelete(String docId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Product'),
+        content: const Text('Are you sure you want to delete this product? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              _productService.deleteProduct(docId);
+              if (ctx. mounted) {
+                Navigator.pop(ctx);
+              }
+            }, 
+            child: const Text('Delete')
           ),
         ],
       ),
@@ -65,16 +124,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthController.signOut();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SignInScreen()),
-                  (route) => false,
-                );
-              }
-            },
+            onPressed: _confirmLogout, // Use confirmation function
           ),
         ],
       ),
@@ -95,7 +145,6 @@ class _VendorDashboardState extends State<VendorDashboard> {
             ),
           ),
           Expanded(
-            // STREAM BUILDER: Listens to Firebase in real-time
             child: StreamBuilder<QuerySnapshot>(
               stream: _productService.getProducts(),
               builder: (context, snapshot) {
@@ -125,7 +174,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
                         subtitle: Text('\$${data['price']} - ${data['description']}'),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _productService.deleteProduct(product.id),
+                          onPressed: () => _confirmDelete(product.id), // Use confirmation function
                         ),
                       ),
                     );
