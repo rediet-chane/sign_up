@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../controller/auth_controller.dart';
@@ -14,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final UserService _userService = UserService();
   String _displayName = 'User';
-  bool _loadingName = true; // ✅ Now used in build()
+  bool _loadingName = true;
 
   @override
   void initState() {
@@ -24,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserName() async {
     final profile = await _userService.getCurrentUserProfile();
-    if (mounted) { // ✅ Proper mounted check
+    if (mounted) {
       setState(() {
         _displayName = profile?['firstName'] ?? 'User';
         _loadingName = false;
@@ -45,10 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               await AuthController.signOut();
-              // ✅ Check mounted on the State, not context
               if (mounted) {
                 Navigator.pushAndRemoveUntil(
-                  context, // ✅ This context is safe because we're in the same sync block
+                  context,
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
                   (route) => false,
                 );
@@ -74,7 +74,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // ✅ Display the user's name at the top
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -94,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _loadingName
                         ? const SizedBox(width: 100, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : Text(
-                            _displayName, // ✅ NOW USED!
+                            _displayName,
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                   ],
@@ -103,7 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Divider(height: 1),
-          // ✅ Products list below
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -143,12 +141,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     final name = data['name'] ?? 'No Name';
                     final price = data['price'] ?? 0;
                     final description = data['description'] ?? '';
+                    final imageBase64 = data['imageBase64'] as String?;
                     
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       elevation: 2,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
+                        leading: imageBase64 != null && imageBase64.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.memory(
+                                  base64Decode(imageBase64),
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.image, color: Colors.grey),
+                              ),
                         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(description.isEmpty ? 'No description' : description),
                         trailing: Text(

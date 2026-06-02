@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:sign_up/controller/app_router.dart';
 import 'firebase_options.dart';
-
+import 'controller/app_router.dart';
+import 'view/loading_screen.dart';
+import 'view/auth/signin_screen.dart'; // ✅ ADDED THIS IMPORT
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,9 +19,20 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'My App',
+      title: 'Awura Marketplace',
       debugShowCheckedModeBanner: false,
-      home: AppRouter.getInitialScreen(),
+      home: FutureBuilder<Widget>(
+        future: AppRouter.getInitialScreen(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const LoadingScreen();
+          }
+          if (snapshot.hasError) {
+            return const SignInScreen();
+          }
+          return snapshot.data ?? const SignInScreen();
+        },
+      ),
     );
   }
 }

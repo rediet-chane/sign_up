@@ -33,7 +33,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
       if (mounted && user != null) {
         // Route to correct page based on role
-        AppRouter.navigateBasedOnRole(context, user);
+        AppRouter.navigateBasedOnRole(context);
       }
     } on FirebaseAuthException catch (e) {
       _showMessage(e.message ?? 'Sign in failed', isError: true);
