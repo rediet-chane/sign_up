@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../controller/auth_controller.dart';
 import '../../controller/user_service.dart';
 import '../auth/signin_screen.dart';
+import '../profile_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -131,8 +132,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
         backgroundColor: Colors.red,
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
-        ],
+  // ✅ NEW: Profile Button
+  IconButton(
+    icon: const Icon(Icons.person_outline),
+    onPressed: () {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+    },
+  ),
+  IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
+],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _userService.getAllUsers(),

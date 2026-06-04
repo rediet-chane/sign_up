@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../controller/auth_controller.dart';
 import '../../controller/user_service.dart';
 import 'auth/signin_screen.dart';
+import '../view/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -97,8 +98,13 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.blue,
         automaticallyImplyLeading: false,
         actions: [
+          IconButton(icon: const Icon(Icons.person_outline), onPressed: () {
+             Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()),
+             );
+          }
+          ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
-        ],
+          ],
       ),
       body: Column(
         children: [

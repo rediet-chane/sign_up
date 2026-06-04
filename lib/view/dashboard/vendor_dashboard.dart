@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../controller/auth_controller.dart';
 import '../../controller/product_service.dart';
 import '../auth/signin_screen.dart';
+import '../profile_screen.dart';
 
 class VendorDashboard extends StatefulWidget {
   const VendorDashboard({super.key});
@@ -55,11 +56,11 @@ class _VendorDashboardState extends State<VendorDashboard> {
     XFile? selectedImage;
     Uint8List? previewBytes;
     
-    _nameController.text = isEdit ? existingProduct!['name'] : '';
-    _priceController.text = isEdit ? existingProduct!['price'].toString() : '';
-    _descController.text = isEdit ? existingProduct!['description'] : '';
+    _nameController.text = isEdit ? existingProduct['name'] : '';
+    _priceController.text = isEdit ? existingProduct['price'].toString() : '';
+    _descController.text = isEdit ? existingProduct['description'] : '';
     
-    String currentImageData = isEdit ? (existingProduct!['imageData'] ?? '') : '';
+    String currentImageData = isEdit ? (existingProduct['imageData'] ?? '') : '';
     _urlController.text = currentImageData.startsWith('http') ? currentImageData : '';
     _imageSourceTab = currentImageData.startsWith('http') ? 1 : 0;
     _isUploading = false;
@@ -286,8 +287,17 @@ class _VendorDashboardState extends State<VendorDashboard> {
         title: const Text('Vendor Dashboard'), 
         backgroundColor: Colors.orange, 
         automaticallyImplyLeading: false, 
-        actions: [IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout)]
-      ),
+        actions: [
+  // ✅ NEW: Profile Button
+  IconButton(
+    icon: const Icon(Icons.person_outline),
+    onPressed: () {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+    },
+  ),
+  IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
+],
+),
       body: Column(
         children: [
           Padding(
