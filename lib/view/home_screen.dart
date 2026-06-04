@@ -16,7 +16,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final UserService _userService = UserService();
   String _displayName = 'User';
   bool _loadingName = true;
+  
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = ''; // ✅ Separate variable to avoid constant rebuilds
 
   @override
   void initState() {
@@ -68,20 +70,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ Helper function to build the product image widget
-  Widget _buildProductImage(String? imageData, {double height = 160, BoxFit fit = BoxFit.contain}) {
+  Widget _buildProductImage(String? imageData, {double height = 140}) {
     final bool isBase64 = imageData != null && imageData.isNotEmpty && !imageData.startsWith('http');
     
     return Container(
       height: height,
       width: double.infinity,
-      color: Colors.grey.shade100, // Background for contained images
+      color: Colors.grey.shade100,
       child: imageData != null && imageData.isNotEmpty
           ? (isBase64
-              ? Image.memory(base64Decode(imageData), fit: fit)
+              ? Image.memory(base64Decode(imageData), fit: BoxFit.contain)
               : Image.network(
                   imageData,
-                  fit: fit,
+                  fit: BoxFit.contain,
                   errorBuilder: (c, e, s) => const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey)),
                 ))
           : const Center(child: Icon(Icons.image, size: 40, color: Colors.grey)),
@@ -101,7 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // Welcome header
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Divider(height: 1),
           
-          // Search bar
+          // ✅ OPTIMIZED SEARCH: Only updates _searchQuery, not entire widget tree
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
@@ -137,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: const Icon(Icons.clear, color: Colors.grey),
                         onPressed: () {
                           _searchController.clear();
-                          setState(() {});
+                          setState(() => _searchQuery = '');
                         },
                       )
                     : null,
@@ -146,11 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              onChanged: (value) => setState(() {}),
+              // ✅ Only update the search query variable, not rebuild everything
+              onSubmitted: (value) => setState(() => _searchQuery = value.toLowerCase()),
             ),
           ),
           
-          // ✅ GRID VIEW: 2 columns side-by-side
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).snapshots(),
@@ -163,13 +163,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 final allProducts = snapshot.data?.docs ?? [];
-                final searchQuery = _searchController.text.toLowerCase();
                 
+                // ✅ Filter using the stored _searchQuery
                 final filteredProducts = allProducts.where((doc) {
+                  if (_searchQuery.isEmpty) return true;
                   final data = doc.data() as Map<String, dynamic>;
                   final name = (data['name'] ?? '').toString().toLowerCase();
                   final description = (data['description'] ?? '').toString().toLowerCase();
-                  return name.contains(searchQuery) || description.contains(searchQuery);
+                  return name.contains(_searchQuery) || description.contains(_searchQuery);
                 }).toList();
 
                 if (filteredProducts.isEmpty) {
@@ -180,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const Icon(Icons.search_off, size: 64, color: Colors.grey),
                         const SizedBox(height: 16),
                         Text(
-                          allProducts.isEmpty ? 'No products yet' : 'No products found for "$searchQuery"',
+                          allProducts.isEmpty ? 'No products yet' : 'No products found for "$_searchQuery"',
                           style: const TextStyle(fontSize: 18, color: Colors.grey),
                         ),
                       ],
@@ -191,10 +192,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 return GridView.builder(
                   padding: const EdgeInsets.all(12),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,         // ✅ 2 columns
-                    crossAxisSpacing: 12,      // space between columns
-                    mainAxisSpacing: 12,       // space between rows
-                    childAspectRatio: 0.65,    // width / height ratio
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.65,
                   ),
                   itemCount: filteredProducts.length,
                   itemBuilder: (context, index) {
@@ -210,10 +211,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ✅ FULL IMAGE (not cropped) using BoxFit.contain
                           ClipRRect(
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                            child: _buildProductImage(imageData, height: 140, fit: BoxFit.contain),
+                            child: _buildProductImage(imageData, height: 140),
                           ),
                           Expanded(
                             child: Padding(
