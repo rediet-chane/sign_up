@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../controller/auth_controller.dart';
@@ -44,7 +45,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void _showManageUserDialog(String userId, String currentRole, String currentStatus, String userName) {
-    // ✅ Ensure we always have valid default values
     String selectedRole = currentRole.isNotEmpty ? currentRole : 'customer';
     String selectedStatus = currentStatus.isNotEmpty ? currentStatus : 'pending';
 
@@ -99,7 +99,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     ).then((result) async {
       if (result != null && result is Map) {
-        // Show loading or just update
         await _userService.updateUserRoleAndStatus(
           userId, 
           result['role'] as String, 
@@ -132,15 +131,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
         backgroundColor: Colors.red,
         automaticallyImplyLeading: false,
         actions: [
-  // ✅ NEW: Profile Button
-  IconButton(
-    icon: const Icon(Icons.person_outline),
-    onPressed: () {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
-    },
-  ),
-  IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
-],
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+              if (mounted) {
+                setState(() {});
+              }
+            },
+          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _userService.getAllUsers(),
@@ -181,16 +185,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     final email = data['email'] ?? '';
                     final role = data['role'] ?? 'customer';
                     final status = data['status'] ?? 'pending';
+                    final profilePicture = data['profilePicture'] as String?;
 
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: _roleColor(role),
-                          child: Text(
-                            firstName[0].toUpperCase(),
-                            style: const TextStyle(color: Colors.white),
-                          ),
+                          backgroundImage: (profilePicture != null && profilePicture.isNotEmpty)
+                              ? MemoryImage(base64Decode(profilePicture))
+                              : null,
+                          child: (profilePicture == null || profilePicture.isEmpty)
+                              ? Text(firstName[0].toUpperCase(), style: const TextStyle(color: Colors.white))
+                              : null,
                         ),
                         title: Text('$firstName $lastName'),
                         subtitle: Column(

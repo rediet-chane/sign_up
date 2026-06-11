@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../controller/auth_controller.dart';
 import '../../controller/user_service.dart';
 import 'auth/signin_screen.dart';
-import '../view/profile_screen.dart';
+import 'product_details_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,9 +18,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final UserService _userService = UserService();
   String _displayName = 'User';
   bool _loadingName = true;
-  
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = ''; // ✅ Separate variable to avoid constant rebuilds
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -34,6 +34,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserName() async {
+    final profile = await _userService.getCurrentUserProfile();
+    if (mounted) {
+      setState(() {
+        _displayName = profile?['firstName'] ?? 'User';
+        _loadingName = false;
+      });
+    }
+  }
+
+  Future<void> _refreshUserData() async {
     final profile = await _userService.getCurrentUserProfile();
     if (mounted) {
       setState(() {
@@ -98,13 +108,20 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.blue,
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(icon: const Icon(Icons.person_outline), onPressed: () {
-             Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()),
-             );
-          }
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+              if (mounted) {
+                _refreshUserData();
+              }
+            },
           ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
-          ],
+        ],
       ),
       body: Column(
         children: [
@@ -129,8 +146,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Divider(height: 1),
-          
-          // ✅ OPTIMIZED SEARCH: Only updates _searchQuery, not entire widget tree
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
@@ -152,11 +167,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              // ✅ Only update the search query variable, not rebuild everything
               onSubmitted: (value) => setState(() => _searchQuery = value.toLowerCase()),
             ),
           ),
-          
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).snapshots(),
@@ -170,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 final allProducts = snapshot.data?.docs ?? [];
                 
-                // ✅ Filter using the stored _searchQuery
                 final filteredProducts = allProducts.where((doc) {
                   if (_searchQuery.isEmpty) return true;
                   final data = doc.data() as Map<String, dynamic>;
@@ -210,46 +222,59 @@ class _HomeScreenState extends State<HomeScreen> {
                     final price = data['price'] ?? 0;
                     final description = data['description'] ?? '';
                     final imageData = data['imageData'] as String?;
-                    
-                    return Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                            child: _buildProductImage(imageData, height: 140),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(10.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    name, 
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    description,
-                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '\$${price.toStringAsFixed(2)}', 
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
-                                  ),
-                                ],
-                              ),
+                      
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ProductDetailsScreen(
+                              productId: filteredProducts[index].id,
+                              productData: data,
                             ),
                           ),
-                        ],
+                        );
+                      },
+                      child: Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                              child: _buildProductImage(imageData, height: 140),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(10.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name, 
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      description,
+                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      '\$${price.toStringAsFixed(2)}', 
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },

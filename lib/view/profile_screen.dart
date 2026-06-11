@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../controller/user_service.dart';
-import '../../controller/product_service.dart'; // Reusing our image compression!
-
+import '../../controller/product_service.dart';
+ 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
   
@@ -15,7 +15,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final UserService _userService = UserService();
-  final ProductService _productService = ProductService(); // For compression
+  final ProductService _productService = ProductService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
   final TextEditingController _firstNameController = TextEditingController();
@@ -40,18 +40,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _firstNameController.text = profile?['firstName'] ?? '';
         _lastNameController.text = profile?['lastName'] ?? '';
         _storeNameController.text = profile?['storeName'] ?? '';
-        _profilePictureBase64 = profile?['profilePicture']; // Load picture
+        _profilePictureBase64 = profile?['profilePicture'];
         _isLoading = false;
       });
     }
   }
 
-  // 1. PICK PROFILE PICTURE
   Future<void> _pickProfilePicture() async {
     final XFile? image = await _productService.picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (image != null) {
       setState(() => _isPickingImage = true);
-      // Compress to Base64 so it's free and fits in Firestore
       final compressed = await _productService.compressAndEncodeImage(image);
       if (mounted) {
         setState(() {
@@ -62,10 +60,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // 2. SAVE PROFILE & GO BACK
   Future<void> _saveProfile() async {
-    if (_firstNameController.text.isEmpty || _storeNameController.text.isEmpty) {
-      _showMessage('First name and store name cannot be empty', isError: true);
+    if (_firstNameController.text.trim().isEmpty) {
+      _showMessage('First name cannot be empty', isError: true);
+      return;
+    }
+    if (_storeNameController.text.trim().isEmpty) {
+      _showMessage('Store name cannot be empty', isError: true);
       return;
     } 
     
@@ -80,7 +81,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'storeName': _storeNameController.text.trim(),
         };
         
-        // Only update picture if a new one was picked
         if (_profilePictureBase64 != null) {
           updateData['profilePicture'] = _profilePictureBase64;
         }
@@ -88,14 +88,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).update(updateData);
       
         if (mounted) {
-          _showMessage('Profile updated successfully', isError: false);
-          // ✅ AUTO-NAVIGATE BACK TO HOME/DASHBOARD
+          _showMessage('Profile updated successfully!', isError: false);
+          // This pops the screen and returns to the Dashboard
           Navigator.pop(context); 
         }
       }
     } catch (e) {
       if (mounted) {  
-        _showMessage('Failed to update profile: $e', isError: true);
+        _showMessage('Failed to update profile. Please try again.', isError: true);
       } 
     } finally {
       if (mounted) {
@@ -104,7 +104,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // 3. SMART PASSWORD CHANGE
   void _changePassword() {
     final currentPassController = TextEditingController();
     final newPassController = TextEditingController();
@@ -133,13 +132,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
+              // 1. Check empty
+              if (currentPassController.text.isEmpty || newPassController.text.isEmpty) {
+                _showMessage('Fields cannot be empty', isError: true);
+                return;
+              }
+              // 2. Check length
               if (newPassController.text.length < 6) {
                 _showMessage('New password must be at least 6 characters', isError: true);
                 return;
               }
-              // ✅ CHECK IF PASSWORDS ARE THE SAME
+              // 3. Check if they are the same
               if (currentPassController.text == newPassController.text) {
-                _showMessage('New password cannot be the same as the old password', isError: true);
+                _showMessage('New password cannot be the same as the current password', isError: true);
                 return;
               }
               
@@ -148,23 +153,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               try {
                 final user = _auth.currentUser;
                 if (user != null && user.email != null) {
-                  // Re-authenticate user for security
+                  // Re-authenticate to prove it's really them
                   final cred = EmailAuthProvider.credential(
                     email: user.email!, 
                     password: currentPassController.text
                   );
                   await user.reauthenticateWithCredential(cred);
-                  
-                  // Update to new password
                   await user.updatePassword(newPassController.text);
                   
                   if (mounted) {
                     _showMessage('Password changed successfully!', isError: false);
                   }
                 }
+              } on FirebaseAuthException catch (e) {
+                if (mounted) {
+                  // ✅ SPECIFIC, HELPFUL ERROR MESSAGES
+                  if (e.code == 'wrong-password') {
+                    _showMessage('Current password is incorrect.', isError: true);
+                  } else if (e.code == 'user-not-found' || e.code == 'invalid-email') {
+                    _showMessage('Email or password is incorrect.', isError: true);
+                  } else if (e.code == 'weak-password') {
+                    _showMessage('New password is too weak.', isError: true);
+                  } else {
+                    _showMessage('Failed: ${e.message}', isError: true);
+                  }
+                }
               } catch (e) {
                 if (mounted) {
-                  _showMessage('Failed. Did you enter the correct current password?', isError: true);
+                  _showMessage('An unexpected error occurred.', isError: true);
                 }
               }
             },
@@ -192,25 +208,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 4. PROFILE PICTURE WITH CAMERA BUTTON
                   Center(
                     child: Stack(
                       children: [
                         CircleAvatar(
                           radius: 50,
                           backgroundColor: Colors.blue,
-                          // Show the Base64 image if it exists
                           backgroundImage: _profilePictureBase64 != null && _profilePictureBase64!.isNotEmpty
                               ? MemoryImage(base64Decode(_profilePictureBase64!))
                               : null,
-                          // Show default icon if no image
                           child: _profilePictureBase64 == null || _profilePictureBase64!.isEmpty
                               ? const Icon(Icons.person, size: 50, color: Colors.white)
                               : null,
                         ),
                         if (_isPickingImage)
                           const Positioned.fill(child: Center(child: CircularProgressIndicator())),
-                        // Camera Icon Overlay
                         Positioned(
                           bottom: 0,
                           right: 0,

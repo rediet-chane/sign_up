@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../controller/auth_controller.dart';
 import '../../controller/product_service.dart';
 import '../auth/signin_screen.dart';
-import '../profile_screen.dart';
+import '../profile_screen.dart'; // ✅ Import for Profile Screen
 
 class VendorDashboard extends StatefulWidget {
   const VendorDashboard({super.key});
@@ -71,7 +71,7 @@ class _VendorDashboardState extends State<VendorDashboard> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: Text(isEdit ? 'Edit Product' : 'Add New Product'),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8, // ✅ FIXED WIDTH
+            width: MediaQuery.of(context).size.width * 0.8,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -116,7 +116,6 @@ class _VendorDashboardState extends State<VendorDashboard> {
                       },
                       child: Container(
                         height: 150,
-                        // ✅ REMOVED width: double.infinity - let parent constrain it
                         decoration: BoxDecoration(
                           color: Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(12),
@@ -138,7 +137,6 @@ class _VendorDashboardState extends State<VendorDashboard> {
                                     child: Image.memory(
                                       previewBytes!,
                                       height: 150,
-                                      // ✅ REMOVED width: double.infinity
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -176,7 +174,6 @@ class _VendorDashboardState extends State<VendorDashboard> {
                           borderRadius: BorderRadius.circular(12),
                           child: SizedBox(
                             height: 150,
-                            // ✅ REMOVED width: double.infinity
                             child: Image.network(
                               _urlController.text,
                               fit: BoxFit.cover,
@@ -288,16 +285,19 @@ class _VendorDashboardState extends State<VendorDashboard> {
         backgroundColor: Colors.orange, 
         automaticallyImplyLeading: false, 
         actions: [
-  // ✅ NEW: Profile Button
-  IconButton(
-    icon: const Icon(Icons.person_outline),
-    onPressed: () {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
-    },
-  ),
-  IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout),
-],
-),
+          // ✅ Profile Button (Clean and simple, no unused variables!)
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () {
+              Navigator.push(
+                context, 
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
+          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: _confirmLogout)
+        ],
+      ),
       body: Column(
         children: [
           Padding(
