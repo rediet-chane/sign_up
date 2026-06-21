@@ -79,7 +79,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  // ✅ v6.x: Direct call to signInWithGoogle
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
@@ -214,21 +213,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      // ✅ FIXED: Use Flexible to prevent overflow
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: OutlinedButton.icon(
+                        child: OutlinedButton(
                           onPressed: _isLoading ? null : _signInWithGoogle, 
-                          icon: const Icon(Icons.g_mobiledata, color: Color(0xFF4285F4), size: 24),
-                          label: const Text(
-                            'Continue with Google',
-                            style: TextStyle(color: Color(0xFF3C4043), fontWeight: FontWeight.w500),
-                          ),
                           style: OutlinedButton.styleFrom(
                             backgroundColor: Colors.white,
                             side: const BorderSide(color: Color(0xFFDADCE0)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.g_mobiledata, color: Color(0xFF4285F4), size: 24),
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: Text(
+                                  'Continue with Google',
+                                  style: const TextStyle(
+                                    color: Color(0xFF3C4043), 
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

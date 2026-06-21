@@ -18,8 +18,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Sign in',
+      debugShowCheckedModeBanner: false, 
+      title: 'Awura Marketplace',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: const SignInScreen(),
     );

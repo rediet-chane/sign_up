@@ -6,17 +6,35 @@ import 'user_service.dart';
 class AuthController {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   
+  // ✅ Use the 303868... Client ID from Google Cloud Console
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
-    clientId: '303868688064-2i82hffval6v5nvf3gbs83ffqi5jo9l6.apps.googleusercontent.com', 
+    clientId: '303868688064-2i82hffval6v5nvf3gbs83ffqi5jo9l6.apps.googleusercontent.com',
   );
 
   static bool isUserSignedIn() => _auth.currentUser != null;
   static User? getCurrentUser() => _auth.currentUser;
 
   static Future<void> signOut() async {
-    await _googleSignIn.signOut();
-    await _auth.signOut();
+    try {
+      await _googleSignIn.signOut().timeout(
+        const Duration(seconds: 3), 
+        onTimeout: () {
+          debugPrint('⚠️ Google sign out timed out');
+          return null;
+        },
+      );
+    } catch (e) {
+      debugPrint('⚠️ Google sign out error: $e');
+    }
+
+    try {
+      await _auth.signOut();
+      debugPrint('✅ User signed out successfully');
+    } catch (e) {
+      debugPrint('❌ Firebase sign out error: $e');
+      rethrow;
+    }
   }
 
   static Future<User?> signInWithEmail(String email, String password) async {
@@ -27,12 +45,9 @@ class AuthController {
     return (await _auth.createUserWithEmailAndPassword(email: email, password: password)).user;
   }
 
-  // ✅ v6.x: Simple signIn() method that opens popup
   static Future<User?> signInWithGoogle() async {
     try {
       debugPrint('🔵 Starting Google Sign-In...');
-      
-      // Trigger Google sign-in (opens popup on web)
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       
       if (googleUser == null) {
@@ -42,19 +57,15 @@ class AuthController {
 
       debugPrint('✅ Google user: ${googleUser.email}');
 
-      // Get authentication tokens
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       
-      // Create Firebase credential
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase
       UserCredential userCredential = await _auth.signInWithCredential(credential);
       
-      // If new user, create profile
       if (userCredential.additionalUserInfo?.isNewUser == true) {
         await UserService().saveUserProfile(
           firstName: googleUser.displayName?.split(' ').first ?? 'User',

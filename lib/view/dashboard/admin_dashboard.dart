@@ -117,87 +117,107 @@ class _AdminDashboardState extends State<AdminDashboard> {
     });
   }
 
-   void _showNotifications() {
+  void _showNotifications() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Notifications'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _userService.getAdminNotifications(),
-            builder: (context, snapshot) {
-              // ✅ EXPOSE THE ERROR SO WE CAN SEE THE INDEX URL
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'Firestore Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                      textAlign: TextAlign.center,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Notifications'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _userService.getAdminNotifications(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Firestore Error: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                  ),
-                );
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              
-              final notifications = snapshot.data?.docs ?? [];
-              
-              if (notifications.isEmpty) {
-                return const Center(child: Text('No notifications'));
-              }
-
-              return ListView.builder(
-                itemCount: notifications.length,
-                itemBuilder: (context, index) {
-                  final data = notifications[index].data() as Map<String, dynamic>;
-                  final isRead = data['read'] ?? false;
-                  
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isRead ? Colors.grey : Colors.orange,
-                      child: const Icon(Icons.person_add, color: Colors.white),
-                    ),
-                    title: Text(data['message'] ?? ''),
-                    subtitle: Text(data['vendorEmail'] ?? ''),
-                    trailing: isRead 
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : ElevatedButton(
-                            onPressed: () async {
-                              await _userService.markNotificationRead(notifications[index].id);
-                              await _userService.updateUserRoleAndStatus(
-                                data['vendorId'], 
-                                'vendor', 
-                                'approved'
-                              );
-                              if (context.mounted) {
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Vendor approved!'), backgroundColor: Colors.green),
-                                );
-                              }
-                            },
-                            child: const Text('Approve'),
-                          ),
                   );
-                },
-              );
-            },
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                final notifications = snapshot.data?.docs ?? [];
+                
+                if (notifications.isEmpty) {
+                  return const Center(child: Text('No notifications'));
+                }
+
+                return ListView.builder(
+                  itemCount: notifications.length,
+                  itemBuilder: (context, index) {
+                    final data = notifications[index].data() as Map<String, dynamic>;
+                    final isRead = data['read'] ?? false;
+                    
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isRead ? Colors.grey : Colors.orange,
+                        child: const Icon(Icons.person_add, color: Colors.white),
+                      ),
+                      title: Text(data['message'] ?? ''),
+                      subtitle: Text(data['vendorEmail'] ?? ''),
+                      trailing: isRead 
+                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          : ElevatedButton(
+                              onPressed: () async {
+                                setDialogState(() {});
+                                
+                                try {
+                                  await _userService.markNotificationRead(notifications[index].id);
+                                  await _userService.updateUserRoleAndStatus(
+                                    data['vendorId'], 
+                                    'vendor', 
+                                    'approved'
+                                  );
+                                  
+                                  setDialogState(() {});
+                                  
+                                  if (context.mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Vendor approved successfully!'), 
+                                        backgroundColor: Colors.green
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'), 
+                                        backgroundColor: Colors.red
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              child: const Text('Approve'),
+                            ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-        ],
       ),
     );
   }
- 
- Color _roleColor(String role) {
+
+  Color _roleColor(String role) {
     if (role == 'admin') return Colors.red;
     if (role == 'vendor') return Colors.orange;
     return Colors.blue;
