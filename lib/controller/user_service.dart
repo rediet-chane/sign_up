@@ -5,56 +5,56 @@ class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> saveUserProfile({
-    required String firstName,
-    required String lastName,
-    required String storeName,
-    required String email,
-    required String role,
-  }) async {
+  Future<void> saveUserProfile({required String firstName, required String lastName, required String storeName, required String email, required String role}) async {
     User? user = _auth.currentUser;
     if (user == null) return;
-
-    String initialStatus = (role == 'vendor') ? 'pending' : 'approved';
-
     await _firestore.collection('users').doc(user.uid).set({
-      'firstName': firstName,
-      'lastName': lastName,
-      'storeName': storeName,
-      'email': email,
-      'role': role,
-      'status': initialStatus,
-      'uid': user.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+      'firstName': firstName, 'lastName': lastName, 'storeName': storeName,
+      'email': email, 'role': role, 'status': role == 'vendor' ? 'pending' : 'approved',
+      'uid': user.uid, 'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<Map<String, dynamic>?> getCurrentUserProfile() async {
     User? user = _auth.currentUser;
     if (user == null) return null;
-    DocumentSnapshot doc = await _firestore.collection('users').doc(user.uid).get();
+    var doc = await _firestore.collection('users').doc(user.uid).get();
     return doc.exists ? doc.data() as Map<String, dynamic> : null;
   }
 
-  Future<String?> getCurrentUserRole() async {
-    final profile = await getCurrentUserProfile();
-    return profile?['role'] ?? 'customer';
+  Future<String?> getCurrentUserRole() async => (await getCurrentUserProfile())?['role'] as String?;
+  Future<String?> getCurrentUserStatus() async => (await getCurrentUserProfile())?['status'] as String?;
+  Stream<QuerySnapshot> getAllUsers() => _firestore.collection('users').snapshots();
+
+  Future<void> updateUserRoleAndStatus(String uid, String role, String status) async {
+    await _firestore.collection('users').doc(uid).update({'role': role, 'status': status});
   }
 
-  Future<String?> getCurrentUserStatus() async {
-    final profile = await getCurrentUserProfile();
-    return profile?['status'] ?? 'pending';
+  Future<void> createVendorSignupNotification(String vendorId, String name, String email) async {
+    var admins = await _firestore.collection('users').where('role', isEqualTo: 'admin').get();
+    for (var a in admins.docs) {
+      await _firestore.collection('notifications').add({
+        'adminId': a.id, 'vendorId': vendorId, 'vendorName': name,
+        'vendorEmail': email, 'type': 'vendor_signup',
+        'message': 'New vendor $name wants to join', 'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
-  Stream<QuerySnapshot> getAllUsers() {
-    return _firestore.collection('users').snapshots();
+  Stream<QuerySnapshot> getAdminNotifications() {
+    User? u = _auth.currentUser;
+    if (u == null) return const Stream.empty();
+    return _firestore.collection('notifications').where('adminId', isEqualTo: u.uid).orderBy('createdAt', descending: true).snapshots();
   }
 
-  // THIS IS THE METHOD THAT WAS MISSING
-  Future<void> updateUserRoleAndStatus(String userId, String newRole, String newStatus) async {
-    await _firestore.collection('users').doc(userId).update({
-      'role': newRole,
-      'status': newStatus,
-    });
+  Future<void> markNotificationRead(String id) async {
+    await _firestore.collection('notifications').doc(id).update({'read': true});
+  }
+
+  Stream<int> getUnreadNotificationCount() {
+    User? u = _auth.currentUser;
+    if (u == null) return Stream.value(0);
+    return _firestore.collection('notifications').where('adminId', isEqualTo: u.uid).where('read', isEqualTo: false).snapshots().map((s) => s.docs.length);
   }
 }

@@ -9,8 +9,13 @@ import 'user_service.dart';
 
 class AppRouter {
   static Future<Widget> getInitialScreen() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    
     final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const SignInScreen();
+    
+    if (user == null) {
+      return const SignInScreen();
+    }
 
     UserService userService = UserService();
     String? role = await userService.getCurrentUserRole();

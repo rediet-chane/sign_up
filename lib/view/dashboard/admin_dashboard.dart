@@ -117,7 +117,87 @@ class _AdminDashboardState extends State<AdminDashboard> {
     });
   }
 
-  Color _roleColor(String role) {
+   void _showNotifications() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Notifications'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _userService.getAdminNotifications(),
+            builder: (context, snapshot) {
+              // ✅ EXPOSE THE ERROR SO WE CAN SEE THE INDEX URL
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Firestore Error: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              
+              final notifications = snapshot.data?.docs ?? [];
+              
+              if (notifications.isEmpty) {
+                return const Center(child: Text('No notifications'));
+              }
+
+              return ListView.builder(
+                itemCount: notifications.length,
+                itemBuilder: (context, index) {
+                  final data = notifications[index].data() as Map<String, dynamic>;
+                  final isRead = data['read'] ?? false;
+                  
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isRead ? Colors.grey : Colors.orange,
+                      child: const Icon(Icons.person_add, color: Colors.white),
+                    ),
+                    title: Text(data['message'] ?? ''),
+                    subtitle: Text(data['vendorEmail'] ?? ''),
+                    trailing: isRead 
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : ElevatedButton(
+                            onPressed: () async {
+                              await _userService.markNotificationRead(notifications[index].id);
+                              await _userService.updateUserRoleAndStatus(
+                                data['vendorId'], 
+                                'vendor', 
+                                'approved'
+                              );
+                              if (context.mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Vendor approved!'), backgroundColor: Colors.green),
+                                );
+                              }
+                            },
+                            child: const Text('Approve'),
+                          ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+ 
+ Color _roleColor(String role) {
     if (role == 'admin') return Colors.red;
     if (role == 'vendor') return Colors.orange;
     return Colors.blue;
@@ -131,6 +211,38 @@ class _AdminDashboardState extends State<AdminDashboard> {
         backgroundColor: Colors.red,
         automaticallyImplyLeading: false,
         actions: [
+          StreamBuilder<int>(
+            stream: _userService.getUnreadNotificationCount(),
+            builder: (context, snapshot) {
+              final count = snapshot.data ?? 0;
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications),
+                    onPressed: _showNotifications,
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.yellow,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.person_outline),
             onPressed: () async {
