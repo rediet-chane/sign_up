@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../controller/auth_controller.dart';
@@ -23,7 +22,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text('Logout'),
         content: const Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
@@ -43,8 +45,69 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
-
-  void _showManageUserDialog(String userId, String currentRole, String currentStatus, String userName) {
+void _confirmDeleteUser(String userId, String userName) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.warning, color: Colors.red),
+          SizedBox(width: 8),
+          Text('Delete User'),
+        ],
+      ),
+      content: Text(
+        'Are you sure you want to delete "$userName"? '
+        'This will remove their profile from the database. '
+        'Note: They may still be able to log in until their Auth account is manually deleted from Firebase Console.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () async {
+            Navigator.pop(ctx);
+            
+            try {
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .delete();
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$userName deleted successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          },
+          child: const Text('Delete', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+}
+  void _showManageUserDialog(
+    String userId,
+    String currentRole,
+    String currentStatus,
+    String userName,
+  ) {
     String selectedRole = currentRole.isNotEmpty ? currentRole : 'customer';
     String selectedStatus = currentStatus.isNotEmpty ? currentStatus : 'pending';
 
@@ -72,13 +135,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 },
               ),
               const SizedBox(height: 16),
-              const Text('Approval Status:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Approval Status:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               DropdownButton<String>(
                 value: selectedStatus,
                 isExpanded: true,
                 items: const [
-                  DropdownMenuItem(value: 'pending', child: Text('Pending Approval')),
-                  DropdownMenuItem(value: 'approved', child: Text('Approved')),
+                  DropdownMenuItem(
+                      value: 'pending', child: Text('Pending Approval')),
+                  DropdownMenuItem(
+                      value: 'approved', child: Text('Approved')),
                 ],
                 onChanged: (val) {
                   if (val != null) {
@@ -89,9 +155,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, {'role': selectedRole, 'status': selectedStatus}),
+              onPressed: () => Navigator.pop(
+                ctx,
+                {'role': selectedRole, 'status': selectedStatus},
+              ),
               child: const Text('Save Changes'),
             ),
           ],
@@ -100,15 +172,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
     ).then((result) async {
       if (result != null && result is Map) {
         await _userService.updateUserRoleAndStatus(
-          userId, 
-          result['role'] as String, 
-          result['status'] as String
+          userId,
+          result['role'] as String,
+          result['status'] as String,
         );
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('User updated to ${result['role']} (${result['status']})'),
+              content: Text(
+                  'User updated to ${result['role']} (${result['status']})'),
               backgroundColor: Colors.green,
             ),
           );
@@ -145,9 +218,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                
+
                 final notifications = snapshot.data?.docs ?? [];
-                
+
                 if (notifications.isEmpty) {
                   return const Center(child: Text('No notifications'));
                 }
@@ -155,38 +228,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 return ListView.builder(
                   itemCount: notifications.length,
                   itemBuilder: (context, index) {
-                    final data = notifications[index].data() as Map<String, dynamic>;
+                    final data =
+                        notifications[index].data() as Map<String, dynamic>;
                     final isRead = data['read'] ?? false;
-                    
+
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: isRead ? Colors.grey : Colors.orange,
-                        child: const Icon(Icons.person_add, color: Colors.white),
+                        child: const Icon(Icons.person_add,
+                            color: Colors.white),
                       ),
                       title: Text(data['message'] ?? ''),
                       subtitle: Text(data['vendorEmail'] ?? ''),
-                      trailing: isRead 
+                      trailing: isRead
                           ? const Icon(Icons.check_circle, color: Colors.green)
                           : ElevatedButton(
                               onPressed: () async {
                                 setDialogState(() {});
-                                
+
                                 try {
-                                  await _userService.markNotificationRead(notifications[index].id);
+                                  await _userService.markNotificationRead(
+                                      notifications[index].id);
+
                                   await _userService.updateUserRoleAndStatus(
-                                    data['vendorId'], 
-                                    'vendor', 
-                                    'approved'
+                                    data['vendorId'],
+                                    'vendor',
+                                    'approved',
                                   );
-                                  
+
                                   setDialogState(() {});
-                                  
+
                                   if (context.mounted) {
                                     Navigator.pop(ctx);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Vendor approved successfully!'), 
-                                        backgroundColor: Colors.green
+                                        content: Text(
+                                            'Vendor approved successfully!'),
+                                        backgroundColor: Colors.green,
                                       ),
                                     );
                                   }
@@ -194,8 +272,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Error: $e'), 
-                                        backgroundColor: Colors.red
+                                        content: Text('Error: $e'),
+                                        backgroundColor: Colors.red,
                                       ),
                                     );
                                   }
@@ -210,17 +288,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
           ],
         ),
       ),
     );
-  }
-
-  Color _roleColor(String role) {
-    if (role == 'admin') return Colors.red;
-    if (role == 'vendor') return Colors.orange;
-    return Colors.blue;
   }
 
   @override
@@ -251,10 +326,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           color: Colors.yellow,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                        constraints: const BoxConstraints(
+                            minWidth: 18, minHeight: 18),
                         child: Text(
                           '$count',
-                          style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -268,7 +348,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                MaterialPageRoute(
+                    builder: (context) => const ProfileScreen()),
               );
               if (mounted) {
                 setState(() {});
@@ -301,7 +382,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     const SizedBox(width: 10),
                     Text(
                       'Total Users: ${users.length}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -317,39 +399,51 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     final email = data['email'] ?? '';
                     final role = data['role'] ?? 'customer';
                     final status = data['status'] ?? 'pending';
-                    final profilePicture = data['profilePicture'] as String?;
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: _roleColor(role),
-                          backgroundImage: (profilePicture != null && profilePicture.isNotEmpty)
-                              ? MemoryImage(base64Decode(profilePicture))
-                              : null,
-                          child: (profilePicture == null || profilePicture.isEmpty)
-                              ? Text(firstName[0].toUpperCase(), style: const TextStyle(color: Colors.white))
-                              : null,
-                        ),
-                        title: Text('$firstName $lastName'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(email),
-                            Text(
-                              'Role: $role | Status: $status',
-                              style: TextStyle(
-                                color: status == 'pending' ? Colors.orange : Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        trailing: const Icon(Icons.edit, color: Colors.grey),
-                        onTap: () => _showManageUserDialog(userId, role, status, '$firstName $lastName'),
-                      ),
-                    );
-                  },
+  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  child: ListTile(
+    leading: CircleAvatar(
+      backgroundColor: role == 'admin'
+          ? Colors.red
+          : (role == 'vendor' ? Colors.orange : Colors.blue),
+      child: Text(firstName[0].toUpperCase(),
+          style: const TextStyle(color: Colors.white)),
+    ),
+    title: Text('$firstName $lastName'),
+    subtitle: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(email),
+        Text(
+          'Role: $role | Status: $status',
+          style: TextStyle(
+            color: status == 'pending' ? Colors.orange : Colors.green,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.edit, color: Colors.grey),
+          onPressed: () => _showManageUserDialog(
+              userId, role, status, '$firstName $lastName'),
+        ),
+        // ✅ DELETE BUTTON
+        IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: () => _confirmDeleteUser(userId, '$firstName $lastName'),
+        ),
+      ],
+    ),
+    onTap: () => _showManageUserDialog(
+        userId, role, status, '$firstName $lastName'),
+  ),
+);
+ },
                 ),
               ),
             ],

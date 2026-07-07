@@ -27,7 +27,15 @@ class UserService {
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
-
+Future<void> saveFCMToken(String token) async {
+  User? user = _auth.currentUser;
+  if (user == null) return;
+  
+  await _firestore.collection('users').doc(user.uid).update({
+    'fcmToken': token,
+  });
+  debugPrint('✅ Saved FCM token for ${user.uid}');
+}
   Future<Map<String, dynamic>?> getCurrentUserProfile() async {
     User? user = _auth.currentUser;
     if (user == null) return null;

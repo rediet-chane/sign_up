@@ -1,305 +1,165 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
-import '../../controller/user_service.dart';
-import '../../controller/product_service.dart';
- 
+import '../controller/auth_controller.dart';
+import 'auth/signin_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
-  
+
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final UserService _userService = UserService();
-  final ProductService _productService = ProductService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _storeNameController = TextEditingController();
-  
-  String? _profilePictureBase64;
-  bool _isLoading = true;
-  bool _isSaving = false;
-  bool _isPickingImage = false;
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    final profile = await _userService.getCurrentUserProfile();
-    if (mounted) {
-      setState(() {
-        _firstNameController.text = profile?['firstName'] ?? '';
-        _lastNameController.text = profile?['lastName'] ?? '';
-        _storeNameController.text = profile?['storeName'] ?? '';
-        _profilePictureBase64 = profile?['profilePicture'];
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _pickProfilePicture() async {
-    final XFile? image = await _productService.picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (image != null) {
-      setState(() => _isPickingImage = true);
-      final compressed = await _productService.compressAndEncodeImage(image);
-      if (mounted) {
-        setState(() {
-          _profilePictureBase64 = compressed;
-          _isPickingImage = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _saveProfile() async {
-    if (_firstNameController.text.trim().isEmpty) {
-      _showMessage('First name cannot be empty', isError: true);
-      return;
-    }
-    if (_storeNameController.text.trim().isEmpty) {
-      _showMessage('Store name cannot be empty', isError: true);
-      return;
-    } 
-    
-    setState(() => _isSaving = true);
-    
-    try {
-      final user = _auth.currentUser;
-      if (user != null) {
-        Map<String, dynamic> updateData = {
-          'firstName': _firstNameController.text.trim(),
-          'lastName': _lastNameController.text.trim(),
-          'storeName': _storeNameController.text.trim(),
-        };
-        
-        if (_profilePictureBase64 != null) {
-          updateData['profilePicture'] = _profilePictureBase64;
-        }
-        
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update(updateData);
-      
-        if (mounted) {
-          _showMessage('Profile updated successfully!', isError: false);
-          // This pops the screen and returns to the Dashboard
-          Navigator.pop(context); 
-        }
-      }
-    } catch (e) {
-      if (mounted) {  
-        _showMessage('Failed to update profile. Please try again.', isError: true);
-      } 
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  void _changePassword() {
-    final currentPassController = TextEditingController();
-    final newPassController = TextEditingController();
-    
+  void _confirmDeleteAccount() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        title: const Row(
           children: [
-            TextField(
-              controller: currentPassController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current Password', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: newPassController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New Password (min 6 chars)', border: OutlineInputBorder()),
-            ),
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Account'),
           ],
         ),
+        content: const Text(
+          'Are you sure you want to permanently delete your account? '
+          'This action cannot be undone and all your data will be lost.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            onPressed: () async {
-              // 1. Check empty
-              if (currentPassController.text.isEmpty || newPassController.text.isEmpty) {
-                _showMessage('Fields cannot be empty', isError: true);
-                return;
-              }
-              // 2. Check length
-              if (newPassController.text.length < 6) {
-                _showMessage('New password must be at least 6 characters', isError: true);
-                return;
-              }
-              // 3. Check if they are the same
-              if (currentPassController.text == newPassController.text) {
-                _showMessage('New password cannot be the same as the current password', isError: true);
-                return;
-              }
-              
-              Navigator.pop(ctx); // Close dialog
-              
-              try {
-                final user = _auth.currentUser;
-                if (user != null && user.email != null) {
-                  // Re-authenticate to prove it's really them
-                  final cred = EmailAuthProvider.credential(
-                    email: user.email!, 
-                    password: currentPassController.text
-                  );
-                  await user.reauthenticateWithCredential(cred);
-                  await user.updatePassword(newPassController.text);
-                  
-                  if (mounted) {
-                    _showMessage('Password changed successfully!', isError: false);
-                  }
-                }
-              } on FirebaseAuthException catch (e) {
-                if (mounted) {
-                  // ✅ SPECIFIC, HELPFUL ERROR MESSAGES
-                  if (e.code == 'wrong-password') {
-                    _showMessage('Current password is incorrect.', isError: true);
-                  } else if (e.code == 'user-not-found' || e.code == 'invalid-email') {
-                    _showMessage('Email or password is incorrect.', isError: true);
-                  } else if (e.code == 'weak-password') {
-                    _showMessage('New password is too weak.', isError: true);
-                  } else {
-                    _showMessage('Failed: ${e.message}', isError: true);
-                  }
-                }
-              } catch (e) {
-                if (mounted) {
-                  _showMessage('An unexpected error occurred.', isError: true);
-                }
-              }
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteAccount();
             },
-            child: const Text('Update'),
+            child: const Text('Delete Forever', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  void _showMessage(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: isError ? Colors.red : Colors.green),
-    );
+  Future<void> _deleteAccount() async {
+    setState(() => _isLoading = true);
+    
+    final success = await AuthController.deleteAccount();
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      
+      if (success) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const SignInScreen()),
+          (route) => false,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to delete account. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile'), backgroundColor: Colors.blue),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Colors.blue,
-                          backgroundImage: _profilePictureBase64 != null && _profilePictureBase64!.isNotEmpty
-                              ? MemoryImage(base64Decode(_profilePictureBase64!))
-                              : null,
-                          child: _profilePictureBase64 == null || _profilePictureBase64!.isEmpty
-                              ? const Icon(Icons.person, size: 50, color: Colors.white)
-                              : null,
-                        ),
-                        if (_isPickingImage)
-                          const Positioned.fill(child: Center(child: CircularProgressIndicator())),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _pickProfilePicture,
-                            child: const CircleAvatar(
-                              radius: 18,
-                              backgroundColor: Colors.white,
-                              child: Icon(Icons.camera_alt, size: 20, color: Colors.blue),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        backgroundColor: Colors.blue,
+      ),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.blue,
+                child: Icon(Icons.person, size: 50, color: Colors.white),
+              ),
+              const SizedBox(height: 24),
+              
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.email),
+                  title: const Text('Email'),
+                  subtitle: Text(AuthController.getCurrentUser()?.email ?? 'No email'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.person),
+                  title: const Text('User ID'),
+                  subtitle: Text(AuthController.getCurrentUser()?.uid ?? 'No ID'),
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await AuthController.signOut();
+                    if (mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SignInScreen()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[600],
+                    foregroundColor: Colors.white,
                   ),
-                  const SizedBox(height: 32),
-                  const Text('Account Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  _buildTextField(_firstNameController, 'First Name', Icons.person_outlined),
-                  const SizedBox(height: 16),
-                  _buildTextField(_lastNameController, 'Last Name', Icons.person_outlined),
-                  const SizedBox(height: 16),
-                  _buildTextField(_storeNameController, 'Store Name', Icons.store_outlined),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    TextEditingController(text: _auth.currentUser?.email ?? ''),
-                    'Email',
-                    Icons.email_outlined,
-                    enabled: false,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Sign Out'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // ✅ DELETE ACCOUNT BUTTON
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _confirmDeleteAccount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
                   ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: _isSaving 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Save Changes', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed: _changePassword,
-                      icon: const Icon(Icons.lock_outline),
-                      label: const Text('Change Password'),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.blue),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ], 
-              ), 
-            ), 
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {bool enabled = true}) {
-    return TextField(
-      controller: controller,
-      enabled: enabled,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.grey),
-        fillColor: enabled ? Colors.grey.shade50 : Colors.grey.shade200,
-        filled: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE8E8E8))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE8E8E8))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.blue)),
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text('Delete Account'),
+                ),
+              ),
+            ],
+          ),
+          
+          if (_isLoading)
+            Container(
+              color: Colors.black54,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
       ),
     );
   }

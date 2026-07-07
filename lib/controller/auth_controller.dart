@@ -1,12 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'user_service.dart';
 
 class AuthController {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
-  // ✅ Use the 303868... Client ID from Google Cloud Console
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
     clientId: '303868688064-2i82hffval6v5nvf3gbs83ffqi5jo9l6.apps.googleusercontent.com',
@@ -18,7 +19,7 @@ class AuthController {
   static Future<void> signOut() async {
     try {
       await _googleSignIn.signOut().timeout(
-        const Duration(seconds: 3), 
+        const Duration(seconds: 3),
         onTimeout: () {
           debugPrint('⚠️ Google sign out timed out');
           return null;
@@ -34,6 +35,35 @@ class AuthController {
     } catch (e) {
       debugPrint('❌ Firebase sign out error: $e');
       rethrow;
+    }
+  }
+
+  // ✅ NEW: Delete account method
+  static Future<bool> deleteAccount() async {
+    User? user = _auth.currentUser;
+    if (user == null) return false;
+
+    try {
+      final uid = user.uid;
+      
+      // 1. Delete Firestore document
+      await _firestore.collection('users').doc(uid).delete();
+      debugPrint('✅ Deleted Firestore document for $uid');
+      
+      // 2. Delete Firebase Auth user
+      await user.delete();
+      debugPrint('✅ Deleted Firebase Auth user for $uid');
+      
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error deleting account: $e');
+      
+      // If re-authentication is needed
+      if (e.toString().contains('requires-recent-login')) {
+        debugPrint('⚠️ Re-authentication required');
+        // You may need to show a dialog asking user to re-login
+      }
+      return false;
     }
   }
 
