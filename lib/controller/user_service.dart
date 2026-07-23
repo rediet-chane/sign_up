@@ -17,7 +17,7 @@ class UserService {
   }) async {
     User? user = _auth.currentUser;
     if (user == null) return;
-    
+
     await _firestore.collection('users').doc(user.uid).set({
       'firstName': firstName,
       'lastName': lastName,
@@ -33,69 +33,45 @@ class UserService {
   Future<void> saveFCMToken(String token) async {
     User? user = _auth.currentUser;
     if (user == null) return;
-    
-    await _firestore.collection('users').doc(user.uid).update({
+
+    // set(merge:true) instead of update() — update() throws if the user
+    // document doesn't exist yet, which can happen if the token save races
+    // ahead of saveUserProfile() right after signup.
+    await _firestore.collection('users').doc(user.uid).set({
       'fcmToken': token,
-    });
+    }, SetOptions(merge: true));
     debugPrint('✅ Saved FCM token for ${user.uid}');
   }
 
-  Future<void> sendPushNotificationToAdmin({
-    required String title,
-    required String body,
-  }) async {
-    try {
-      var admins = await _firestore.collection('users').where('role', isEqualTo: 'admin').get();
-      
-      if (admins.docs.isEmpty) {
-        debugPrint('⚠️ No admin users found');
-        return;
-      }
-
-      for (var adminDoc in admins.docs) {
-        final adminData = adminDoc.data();
-        final fcmToken = adminData['fcmToken'];
-        
-        if (fcmToken != null && fcmToken.toString().isNotEmpty) {
-          await _sendFCMMessage(token: fcmToken, title: title, body: body);
-        } else {
-          debugPrint('⚠️ Admin ${adminDoc.id} has no FCM token');
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Error sending push notification: $e');
-    }
-  }
-
-  // ✅ UPDATED: Now calls your Render Backend using V1 API
-  Future<void> _sendFCMMessage({
-    required String token,
-    required String title,
-    required String body,
-  }) async {
-    const String renderUrl = 'https://fcm-notification-server-yupr.onrender.com/send-notification';
-
-    final Map<String, dynamic> message = {
-      'token': token,
-      'title': title,
-      'body': body,
-    };
+  // This now only tells the Render server "a vendor signed up" — it does
+  // NOT read or send any admin's fcmToken itself. The server looks up
+  // admins and their tokens using its own Firebase Admin credentials,
+  // and also writes the Firestore notification doc. This is why
+  // firestore.rules now blocks the client from creating notification
+  // docs directly (allow create: if false) — only the server does that.
+  Future<void> createVendorSignupNotification(
+      String vendorId, String name, String email) async {
+    const String renderUrl =
+        'https://fcm-notification-server-yupr.onrender.com/vendor-signup-notification';
 
     try {
       final response = await http.post(
         Uri.parse(renderUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(message),
+        body: jsonEncode({
+          'vendorId': vendorId,
+          'vendorName': name,
+          'vendorEmail': email,
+        }),
       );
 
       if (response.statusCode == 200) {
-        debugPrint('✅ Push notification sent successfully via Render V1 API');
+        debugPrint('✅ Vendor signup notification triggered: ${response.body}');
       } else {
-        debugPrint('❌ Failed to send push notification: ${response.statusCode}');
-        debugPrint('Response: ${response.body}');
+        debugPrint('❌ Notification server returned ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      debugPrint('❌ Error calling notification service: $e');
+      debugPrint('❌ Error calling notification server: $e');
     }
   }
 
@@ -106,18 +82,17 @@ class UserService {
     return doc.exists ? doc.data() as Map<String, dynamic> : null;
   }
 
-  Future<String?> getCurrentUserRole() async => 
+  Future<String?> getCurrentUserRole() async =>
       (await getCurrentUserProfile())?['role'] as String?;
-  
-  Future<String?> getCurrentUserStatus() async => 
+
+  Future<String?> getCurrentUserStatus() async =>
       (await getCurrentUserProfile())?['status'] as String?;
 
-  Stream<QuerySnapshot> getAllUsers() => 
-      _firestore.collection('users').snapshots();
+  Stream<QuerySnapshot> getAllUsers() => _firestore.collection('users').snapshots();
 
   Future<void> updateUserRoleAndStatus(String uid, String role, String status) async {
     debugPrint('🔵 Updating user $uid to role: $role, status: $status');
-    
+
     try {
       await _firestore.collection('users').doc(uid).update({
         'role': role,
@@ -130,42 +105,12 @@ class UserService {
     }
   }
 
-  Future<void> createVendorSignupNotification(String vendorId, String name, String email) async {
-    debugPrint('🔵 Creating notification for vendor: $vendorId');
-    
-    var admins = await _firestore.collection('users').where('role', isEqualTo: 'admin').get();
-    
-    if (admins.docs.isEmpty) {
-      debugPrint('⚠️ No admin users found in database');
-      return;
-    }
-
-    for (var adminDoc in admins.docs) {
-      await _firestore.collection('notifications').add({
-        'adminId': adminDoc.id,
-        'vendorId': vendorId,
-        'vendorName': name,
-        'vendorEmail': email,
-        'type': 'vendor_signup',
-        'message': 'New vendor $name wants to join',
-        'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      
-      debugPrint('✅ Notification document created for admin: ${adminDoc.id}');
-      
-      await sendPushNotificationToAdmin(
-        title: 'New Vendor Signup!',
-        body: '$name ($email) wants to join as a vendor',
-      );
-    }
-  }
-
   Stream<QuerySnapshot> getAdminNotifications() {
     User? u = _auth.currentUser;
     if (u == null) return const Stream.empty();
-    
-    return _firestore.collection('notifications')
+
+    return _firestore
+        .collection('notifications')
         .where('adminId', isEqualTo: u.uid)
         .orderBy('createdAt', descending: true)
         .snapshots();
@@ -178,8 +123,9 @@ class UserService {
   Stream<int> getUnreadNotificationCount() {
     User? u = _auth.currentUser;
     if (u == null) return Stream.value(0);
-    
-    return _firestore.collection('notifications')
+
+    return _firestore
+        .collection('notifications')
         .where('adminId', isEqualTo: u.uid)
         .where('read', isEqualTo: false)
         .snapshots()

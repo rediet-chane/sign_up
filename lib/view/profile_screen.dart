@@ -350,7 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SizedBox(width: double.infinity, height: 48, child: ElevatedButton.icon(
                   onPressed: () async {
                     await AuthController.signOut();
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const SignInScreen()), (route) => false);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[600], foregroundColor: Colors.white),

@@ -11,45 +11,103 @@ import 'controller/user_service.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
+// One channel, reused everywhere (foreground popup, background handler,
+// and the AndroidManifest default-channel meta-data).
+const AndroidNotificationChannel vendorAlertsChannel = AndroidNotificationChannel(
+  'vendor_alerts',
+  'Vendor Alerts',
+  description: 'Notifications for new vendor signups',
+  importance: Importance.high,
+);
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  debugPrint("🔔 Background message: ${message.notification?.title}");
+  debugPrint('🔔 Background message: ${message.notification?.title}');
+}
+
+Future<void> _showLocalNotification(RemoteMessage message) async {
+  final notification = message.notification;
+  if (notification == null) return;
+
+  await flutterLocalNotificationsPlugin.show(
+    notification.hashCode,
+    notification.title,
+    notification.body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        vendorAlertsChannel.id,
+        vendorAlertsChannel.name,
+        channelDescription: vendorAlertsChannel.description,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    ),
+  );
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  
+
+  // --- Local notifications setup ---
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings =
-      InitializationSettings(android: initializationSettingsAndroid);
+  const DarwinInitializationSettings initializationSettingsIOS =
+      DarwinInitializationSettings();
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsIOS,
+  );
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(vendorAlertsChannel);
+
+  // --- FCM setup ---
   FirebaseMessaging messaging = FirebaseMessaging.instance;
   await messaging.requestPermission(
     alert: true,
     badge: true,
     sound: true,
   );
-  
+
   String? token = await messaging.getToken();
   debugPrint('🔔 FCM TOKEN: $token');
-  
-  // Save token to Firestore for this user
+
   if (token != null && FirebaseAuth.instance.currentUser != null) {
     await UserService().saveFCMToken(token);
   }
 
-  // Listen for token refresh
   messaging.onTokenRefresh.listen((newToken) async {
     debugPrint('🔔 Token refreshed: $newToken');
     if (FirebaseAuth.instance.currentUser != null) {
       await UserService().saveFCMToken(newToken);
     }
+  });
+
+  // Show a popup whenever a message arrives while the app is OPEN.
+  // This is the piece that was missing — without it, foreground messages
+  // are delivered silently.
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    debugPrint('🔔 Foreground message: ${message.notification?.title}');
+    _showLocalNotification(message);
+  });
+
+  // User taps a notification and it opens the app.
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    debugPrint('🔔 Notification tapped (app was in background): ${message.data}');
+    // Optional: navigate to the admin notifications screen here.
   });
 
   runApp(const MyApp());
