@@ -6,8 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../controller/auth_controller.dart';
 import '../../controller/product_service.dart';
 import '../auth/signin_screen.dart';
-import '../profile_screen.dart'; // ✅ Import for Profile Screen
-
+import '../profile_screen.dart'; 
+import '../vendor/shop_screen.dart'; 
 class VendorDashboard extends StatefulWidget {
   const VendorDashboard({super.key});
 
@@ -300,6 +300,24 @@ class _VendorDashboardState extends State<VendorDashboard> {
       ),
       body: Column(
         children: [
+          Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+  child: ElevatedButton.icon(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ShopScreen()),
+      );
+    },
+    icon: const Icon(Icons.shopping_bag),
+    label: const Text('Browse All Products (Shop)'),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.blue,
+      foregroundColor: Colors.white,
+      minimumSize: const Size(double.infinity, 50),
+    ),
+  ),
+),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
