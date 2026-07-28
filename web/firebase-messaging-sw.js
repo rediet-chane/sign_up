@@ -1,7 +1,6 @@
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
 
-// Initialize Firebase
 firebase.initializeApp({
   apiKey: "AIzaSyDjd8eiCDbwt9Qb2qEPdCyE_dWoOLYtlfY", // Get this from lib/firebase_options.dart
   authDomain: "sign-up-app-227a0.firebaseapp.com",
@@ -12,11 +11,7 @@ firebase.initializeApp({
 });
 
 const messaging = firebase.messaging();
-
-// ✅ ADD YOUR VAPID KEY HERE
 messaging.usePublicVapidKey("BGoCuRuvSPmZak6PIX4zR4iXmUcgCWNgX0HQlecb8bJw6aUVYbRZYD79JEhkuGWYbn0cx9hghkuiaW5doubUHzM");
-
-// Handle background messages
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
   
