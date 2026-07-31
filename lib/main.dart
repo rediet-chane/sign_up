@@ -120,7 +120,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Sign in ',
+      title: 'Awura Marketplace',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
